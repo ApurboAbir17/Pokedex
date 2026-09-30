@@ -1,4 +1,4 @@
-# Glass Pokédex
+# Pokédex
 
 **Live: https://apurboabir17.github.io/Pokedex/**
 
