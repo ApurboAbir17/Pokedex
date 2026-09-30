@@ -20,6 +20,7 @@ const idEl = document.querySelector("#poke-id");
 const genEl = document.querySelector("#poke-gen");
 const genusEl = document.querySelector("#poke-genus");
 const imgEl = document.querySelector("#poke-img");
+const watermarkEl = document.querySelector("#poke-watermark");
 const artSelect = document.querySelector("#art-select");
 const shinyBtn = document.querySelector("#shiny-btn");
 const cryBtn = document.querySelector("#cry-btn");
@@ -40,14 +41,19 @@ const evolutionEl = document.querySelector("#evolution");
 
 const grid = document.querySelector("#grid");
 const sentinel = document.querySelector("#sentinel");
-const artBox = document.querySelector(".art");
+const typebar = document.querySelector("#typebar");
+const filterNote = document.querySelector("#filter-note");
 
 // ---------- 2. Settings and memory ----------
 const API = "https://pokeapi.co/api/v2/";
 const SPRITE = "https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/";
 const MAX_POKEMON = 1025; // how many Pokémon have a national number
 
-const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+// Ask the OS every time, so turning the setting on mid-visit still works
+const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+function reduceMotion() {
+  return motionQuery.matches;
+}
 
 let allNames = [];      // every Pokémon name (used for suggestions and the grid)
 let current = null;     // the Pokémon shown on the card
@@ -60,7 +66,8 @@ let queue = [];         // shuffled numbers for the endless grid
 const cache = new Map();
 let recent = readLocal("pokedexRecent", []);
 
-// Stats in the order the hexagon uses (top, then clockwise)
+// Stats in the order the hexagon uses (top, then clockwise).
+// The chart and the list below share these words on purpose.
 const STAT_ORDER = [
   { key: "hp", label: "HP" },
   { key: "attack", label: "Attack" },
@@ -69,6 +76,53 @@ const STAT_ORDER = [
   { key: "special-defense", label: "Sp. Def" },
   { key: "special-attack", label: "Sp. Atk" },
 ];
+
+// The chart is a 300x220 box with the hexagon centred on 150,110
+const RADAR = { cx: 150, cy: 110, r: 75 };
+const MAX_STAT = 255;   // the same ceiling for the bars, so both agree
+const MORPH_MS = 400;   // matches --dur-s, so the two never disagree
+
+// The hexagon has to be moved by hand: SVG geometry cannot be
+// CSS-transitioned. This tweens the six corners so the chart shows
+// how the stats changed instead of just jumping to a new shape.
+let radarFrom = null;   // the six [x, y] pairs we are leaving
+let radarFrame = 0;     // the frame in flight, so a new tween can cancel it
+
+function drawRadar(points) {
+  radarShape.setAttribute("points", points.map(function (p) {
+    return p[0].toFixed(1) + "," + p[1].toFixed(1);
+  }).join(" "));
+}
+
+function morphRadar(to) {
+  cancelAnimationFrame(radarFrame);
+
+  // Nothing to move from: the first Pokémon of a visit draws instantly,
+  // which also keeps the tween from running while the card is hidden.
+  if (reduceMotion() || !radarFrom) {
+    drawRadar(to);
+    radarFrom = to;
+    return;
+  }
+
+  const from = radarFrom;
+  const started = performance.now();
+
+  const step = function (now) {
+    const t = Math.min((now - started) / MORPH_MS, 1);
+    const eased = 1 - Math.pow(1 - t, 3);   // ease-out, like the CSS curve
+    drawRadar(from.map(function (p, i) {
+      return [p[0] + (to[i][0] - p[0]) * eased, p[1] + (to[i][1] - p[1]) * eased];
+    }));
+    if (t < 1) {
+      radarFrame = requestAnimationFrame(step);
+    } else {
+      radarFrom = to;   // the shape we finished on is the next starting point
+    }
+  };
+
+  radarFrame = requestAnimationFrame(step);
+}
 
 // Old-game pictures: [label, generation key, game key] from the API
 const GEN_SPRITES = [
@@ -81,6 +135,17 @@ const GEN_SPRITES = [
   ["Gen VII sprite", "generation-vii", "ultra-sun-ultra-moon"],
   ["Gen VIII icon", "generation-viii", "icons"],
 ];
+
+// Canonical type order, so the filter always reads the same way
+const TYPES = [
+  "normal", "fire", "water", "electric", "grass", "ice",
+  "fighting", "poison", "ground", "flying", "psychic", "bug",
+  "rock", "ghost", "dragon", "dark", "steel", "fairy",
+];
+
+let activeType = "";           // "" means no filter
+let typePool = null;           // Set of national numbers, when filtering
+const typeCache = new Map();   // type name -> array of national numbers
 
 // ---------- 3. Small helper functions ----------
 
@@ -134,18 +199,18 @@ function saveToCache(pokemon) {
 
 // ---------- 4. Status messages ----------
 function showLoading() {
-  statusBox.textContent = "Loading Pokémon...";
-  statusBox.className = "status glass loading";
+  statusBox.textContent = "Loading Pokémon…";
+  statusBox.className = "status loading";
   searchButton.disabled = true;
 }
 function showError(message) {
   statusBox.textContent = message;
-  statusBox.className = "status glass error";
+  statusBox.className = "status error";
   card.hidden = true;
 }
 function clearStatus() {
   statusBox.textContent = "";
-  statusBox.className = "status glass";
+  statusBox.className = "status";
   searchButton.disabled = false;
 }
 
@@ -164,14 +229,16 @@ async function loadNames() {
   }
 }
 
-// Walk through the evolution chain and make one simple list
-function flattenChain(node, list) {
-  list.push({
+// Walk the evolution tree and collect it one stage at a time, so a
+// branching family (Eevee) is not drawn as one impossible straight line.
+function chainStages(node, depth, stages) {
+  stages[depth] = stages[depth] || [];
+  stages[depth].push({
     name: node.species.name,
     id: Number(node.species.url.split("/")[6]), // .../pokemon-species/25/ -> 25
   });
-  node.evolves_to.forEach(function (next) { flattenChain(next, list); });
-  return list;
+  node.evolves_to.forEach(function (next) { chainStages(next, depth + 1, stages); });
+  return stages;
 }
 
 // Make the list of picture styles. "?." means "if it exists, go deeper".
@@ -204,7 +271,7 @@ async function fetchPokemon(query) {
   let evolution = [];
   try {
     const chain = await fetchJson(species.evolution_chain.url);
-    evolution = flattenChain(chain.chain, []);
+    evolution = chainStages(chain.chain, 0, []);
   } catch (e) { /* ignore */ }
 
   // Pick the English and Japanese texts out of the lists
@@ -263,6 +330,7 @@ async function getPokemon(text, isStartup) {
     showPokemon(pokemon);
     if (!isStartup) addRecent(pokemon.name); // the first Pikachu is not a real search
     clearStatus();
+    revealCard();
   } catch (error) {
     if (myRequest !== latestRequest) return;
     if (error.status === 404) {
@@ -281,7 +349,15 @@ function didYouMean(text) {
   if (text.length < 3) return "";
   const start = text.slice(0, 4);
   const matches = allNames.filter(function (n) { return n.startsWith(start); }).slice(0, 3);
-  return matches.length ? " Did you mean: " + matches.join(", ") + "?" : "";
+  return matches.length ? " Did you mean: " + matches.map(prettyName).join(", ") + "?" : "";
+}
+
+// Bring the card into view, but only when it is actually off screen,
+// so pressing "next" while the card is visible never moves the page.
+function revealCard() {
+  const box = card.getBoundingClientRect();
+  if (box.top >= 0 && box.bottom <= window.innerHeight) return;
+  card.scrollIntoView({ behavior: reduceMotion() ? "auto" : "smooth", block: "start" });
 }
 
 // ---------- 6. Draw the card ----------
@@ -291,7 +367,7 @@ function showPokemon(p) {
   // Name card
   nameEl.textContent = prettyName(p.name);
   jpEl.textContent = p.japanese;
-  idEl.textContent = "National № " + String(p.speciesId).padStart(3, "0");
+  idEl.textContent = "№ " + String(p.speciesId).padStart(3, "0");
   genEl.textContent = "Gen " + p.generation;
   genusEl.textContent = p.genus;
   document.title = prettyName(p.name) + " #" + p.speciesId + " | Pokédex";
@@ -310,11 +386,17 @@ function showPokemon(p) {
   });
   document.body.className = "t-" + p.types[0];
 
-  // Abilities
+  // Abilities: the hidden marker is its own tag, not part of the name
   abilitiesEl.innerHTML = "";
   p.abilities.forEach(function (a) {
     const li = document.createElement("li");
-    li.textContent = prettyName(a.name) + (a.hidden ? " (hidden)" : "");
+    li.appendChild(document.createTextNode(prettyName(a.name)));
+    if (a.hidden) {
+      const tag = document.createElement("span");
+      tag.className = "tag";
+      tag.textContent = "Hidden";
+      li.appendChild(tag);
+    }
     abilitiesEl.appendChild(li);
   });
 
@@ -331,6 +413,17 @@ function showPokemon(p) {
   showingShiny = false;
   updateArt(true);
 
+  // Ghost this Pokémon's own artwork into the corner of the card.
+  // Always the official artwork, so the mark never turns to mush
+  // when a 96px pixel sprite is chosen for the main picture.
+  watermarkEl.style.backgroundImage =
+    'url("' + SPRITE + "other/official-artwork/" + p.speciesId + '.png")';
+  if (!reduceMotion()) {
+    // 0 -> 1 lands on the 0.15 the CSS sets, so the ghost fades up
+    // in step with the radar morph rather than popping in
+    watermarkEl.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 400, easing: "cubic-bezier(0.2, 0, 0, 1)" });
+  }
+
   cryBtn.hidden = !p.cry;
   descEl.textContent = p.text;
   showEvolution(p);
@@ -346,6 +439,7 @@ function showStats(stats) {
   STAT_ORDER.forEach(function (stat, index) {
     const value = stats[stat.key] || 0;
     total += value;
+    const share = Math.min(value / MAX_STAT, 1);   // bars and chart share this scale
 
     // List row: label, number, bar
     const li = document.createElement("li");
@@ -356,21 +450,25 @@ function showStats(stats) {
     const bar = document.createElement("div");
     bar.className = "bar";
     const fill = document.createElement("span");
-    fill.style.width = "0%";
     bar.appendChild(fill);
     li.append(label, number, bar);
     statsEl.appendChild(li);
-    // Grow the bar a moment later so the CSS transition can animate it
-    setTimeout(function () { fill.style.width = Math.min(value / 255, 1) * 100 + "%"; }, 50);
+    // Fill once the row is on screen, so the CSS transition has something to animate.
+    // --d staggers the rows; the reduced-motion CSS zeroes the delay.
+    li.style.setProperty("--d", index * 25 + "ms");
+    requestAnimationFrame(function () { fill.style.width = share * 100 + "%"; });
 
     // Hexagon corner (60 degrees apart, first one at the top)
     const angle = ((-90 + index * 60) * Math.PI) / 180;
-    const distance = 75 * Math.min(value / 180, 1);
-    points.push((120 + distance * Math.cos(angle)).toFixed(1) + "," + (110 + distance * Math.sin(angle)).toFixed(1));
+    const distance = RADAR.r * share;
+    points.push([
+      RADAR.cx + distance * Math.cos(angle),
+      RADAR.cy + distance * Math.sin(angle),
+    ]);
   });
 
-  radarShape.setAttribute("points", points.join(" "));
-  totalEl.textContent = total; // total power = all six stats added up
+  morphRadar(points);
+  totalEl.textContent = total; // total = all six stats added up
 }
 
 // Show the chosen picture (normal or shiny)
@@ -383,43 +481,58 @@ function updateArt(playAnimation) {
   imgEl.classList.toggle("pixel", Boolean(art.pixel));
 
   shinyBtn.disabled = !art.shiny; // some styles have no shiny picture
-  shinyBtn.textContent = useShiny ? "Normal colours" : "Shiny version";
+  shinyBtn.textContent = useShiny ? "Normal" : "Shiny";
   shinyBtn.setAttribute("aria-pressed", String(Boolean(useShiny)));
 
-  // A little pop when the picture changes
-  if (playAnimation && !reduceMotion) {
+  // A short fade and a touch of scale, so the swap reads as a change
+  // of form rather than a dissolve
+  if (playAnimation && !reduceMotion()) {
     imgEl.animate(
-      [{ opacity: 0, scale: "0.85" }, { opacity: 1, scale: "1" }],
-      { duration: 400, easing: "ease-out" }
+      [{ opacity: 0, transform: "scale(0.96)" }, { opacity: 1, transform: "none" }],
+      { duration: 200, easing: "cubic-bezier(0.2, 0, 0, 1)" }
     );
   }
 }
 
 function showEvolution(p) {
   evolutionEl.innerHTML = "";
+
   if (p.evolution.length < 2) {
-    const li = document.createElement("li");
-    li.className = "evo-note";
-    li.textContent = "This Pokémon does not evolve.";
-    evolutionEl.appendChild(li);
+    const note = document.createElement("li");
+    note.className = "evo-note";
+    note.textContent = "This Pokémon does not evolve.";
+    evolutionEl.appendChild(note);
     return;
   }
-  p.evolution.forEach(function (evo) {
-    const li = document.createElement("li");
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "evo" + (evo.name === p.speciesName ? " current" : "");
 
-    const img = document.createElement("img");
-    img.src = SPRITE + evo.id + ".png";
-    img.alt = "";
-    const label = document.createElement("span");
-    label.textContent = prettyName(evo.name);
+  p.evolution.forEach(function (stage) {
+    const stageEl = document.createElement("li");
+    stageEl.className = "evo-stage";
 
-    button.append(img, label);
-    button.addEventListener("click", function () { getPokemon(String(evo.id)); });
-    li.appendChild(button);
-    evolutionEl.appendChild(li);
+    const row = document.createElement("ul");
+    row.className = "evo-row";
+
+    stage.forEach(function (evo) {
+      const cell = document.createElement("li");
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "evo-card";
+      if (evo.name === p.speciesName) button.setAttribute("aria-current", "true");
+
+      const img = document.createElement("img");
+      img.src = SPRITE + evo.id + ".png";
+      img.alt = "";
+      const label = document.createElement("span");
+      label.textContent = prettyName(evo.name);
+
+      button.append(img, label);
+      button.addEventListener("click", function () { getPokemon(String(evo.id)); });
+      cell.appendChild(button);
+      row.appendChild(cell);
+    });
+
+    stageEl.appendChild(row);
+    evolutionEl.appendChild(stageEl);
   });
 }
 
@@ -447,7 +560,8 @@ function showRecent() {
   if (recent.length === 0) return;
 
   const title = document.createElement("span");
-  title.textContent = "Recent:";
+  title.className = "group-label";
+  title.textContent = "Recent";
   recentEl.appendChild(title);
   recent.forEach(function (name) {
     const button = document.createElement("button");
@@ -483,9 +597,11 @@ function showSuggestions() {
   items.forEach(function (name) {
     const id = allNames.indexOf(name) + 1; // position in the list = national number
     const li = document.createElement("li");
+    li.setAttribute("role", "presentation");
     const button = document.createElement("button");
     button.type = "button";
     button.className = "suggestion";
+    button.setAttribute("role", "option");
     if (id > 0) {
       const img = document.createElement("img");
       img.src = SPRITE + id + ".png";
@@ -506,6 +622,7 @@ function showSuggestions() {
     suggestionsEl.appendChild(li);
   });
   suggestionsEl.hidden = false;
+  input.setAttribute("aria-expanded", "true");
 }
 
 function addTitle(text) {
@@ -517,6 +634,7 @@ function addTitle(text) {
 
 function hideSuggestions() {
   suggestionsEl.hidden = true;
+  input.setAttribute("aria-expanded", "false");
 }
 
 // ---------- 9. Endless grid of random Pokémon ----------
@@ -536,14 +654,17 @@ function makeMiniCard(id) {
   const name = allNames[id - 1] || String(id);
   const button = document.createElement("button");
   button.type = "button";
-  button.className = "mini glass";
+  // No .glass here: a backdrop blur on 100+ small cards is the single
+  // most expensive thing this page could do, and it buys very little.
+  button.className = "mini";
 
   const img = document.createElement("img");
   img.src = SPRITE + "other/official-artwork/" + id + ".png";
   img.alt = "";
-  img.width = 110;
-  img.height = 110;
+  img.width = 96;
+  img.height = 96;
   img.loading = "lazy"; // only download the picture when it is near the screen
+  img.decoding = "async";
 
   const label = document.createElement("span");
   label.textContent = prettyName(name);
@@ -555,23 +676,95 @@ function makeMiniCard(id) {
   button.addEventListener("click", function () {
     input.value = "";
     getPokemon(String(id));
-    window.scrollTo({ top: 0, behavior: reduceMotion ? "auto" : "smooth" });
   });
   return button;
 }
 
 // Add 12 more cards
 function loadMore() {
-  queue.splice(0, 12).forEach(function (id) { grid.appendChild(makeMiniCard(id)); });
+  // --i is the card's place in this batch, so a batch arrives in order
+  queue.splice(0, 12).forEach(function (id, index) {
+    const card = makeMiniCard(id);
+    card.style.setProperty("--i", index);
+    grid.appendChild(card);
+  });
 
   if (queue.length === 0) {
-    sentinel.textContent = "You met every Pokémon!";
+    sentinel.textContent = typePool
+      ? "You met every " + typeLabel() + " type!"
+      : "You met every Pokémon!";
     observer.disconnect();
     return;
   }
   // Watch again, so it fires again if the bottom is still on screen
   observer.unobserve(sentinel);
   observer.observe(sentinel);
+}
+
+// ---------- 9b. Type filter ----------
+
+// The type endpoint lists every Pokémon of that type in a single request.
+// A name's position in allNames is its national number, so nothing else
+// needs fetching. Forms like "zeraora-mega" are not in the National Dex
+// list, so they drop out here rather than showing a card with no sprite.
+async function loadType(type) {
+  if (typeCache.has(type)) return typeCache.get(type);
+  const data = await fetchJson(API + "type/" + type);
+  const ids = data.pokemon
+    .map(function (entry) { return allNames.indexOf(entry.pokemon.name) + 1; })
+    .filter(function (id) { return id > 0; });
+  typeCache.set(type, ids);
+  return ids;
+}
+
+function typeLabel() {
+  return activeType.charAt(0).toUpperCase() + activeType.slice(1);
+}
+
+function buildTypeChips() {
+  typebar.innerHTML = "";
+
+  const label = document.createElement("span");
+  label.className = "group-label";
+  label.textContent = "Type";
+  typebar.appendChild(label);
+
+  [""].concat(TYPES).forEach(function (type) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "type-chip" + (type ? " t-" + type : "");
+    button.dataset.type = type;
+    button.textContent = type || "all";
+    button.setAttribute("aria-pressed", String(type === activeType));
+    button.addEventListener("click", function () { setType(type); });
+    typebar.appendChild(button);
+  });
+}
+
+async function setType(type) {
+  if (type === activeType) return;
+  activeType = type;
+  buildTypeChips();   // repaint which chip is pressed
+
+  if (!type) {
+    typePool = null;
+    startGrid();
+    return;
+  }
+
+  filterNote.textContent = "Loading " + type + " encounters…";
+  try {
+    const ids = await loadType(type);
+    if (activeType !== type) return;   // a different chip was picked meanwhile
+    typePool = new Set(ids);
+  } catch (error) {
+    if (activeType !== type) return;
+    typePool = null;
+    startGrid();
+    filterNote.textContent = "Could not load that type. Showing all encounters.";
+    return;
+  }
+  startGrid();
 }
 
 // IntersectionObserver tells us when the "Loading more..." line comes into view
@@ -581,9 +774,20 @@ const observer = new IntersectionObserver(function (entries) {
 
 function startGrid() {
   grid.innerHTML = "";
-  sentinel.textContent = "Loading more...";
-  queue = shuffleIds();
+  sentinel.textContent = "Loading more…";
+  queue = typePool
+    ? shuffleIds().filter(function (id) { return typePool.has(id); })
+    : shuffleIds();
   observer.disconnect();
+
+  filterNote.textContent = typePool
+    ? queue.length + " " + typeLabel() + " encounters"
+    : queue.length + " encounters, every type";
+
+  if (queue.length === 0) {
+    sentinel.textContent = "No encounters for that type.";
+    return;
+  }
   observer.observe(sentinel);
 }
 
@@ -593,8 +797,11 @@ cryBtn.addEventListener("click", function () {
   const audio = new Audio(current.cry);
   audio.volume = 0.5;
   cryBtn.classList.add("playing");
-  audio.addEventListener("ended", function () { cryBtn.classList.remove("playing"); });
-  audio.play().catch(function () { cryBtn.classList.remove("playing"); });
+  // Whatever happens, the button has to go back to its resting state
+  const reset = function () { cryBtn.classList.remove("playing"); };
+  audio.addEventListener("ended", reset);
+  audio.addEventListener("error", reset);
+  audio.play().catch(reset);
 });
 
 // ---------- 11. Listen for clicks and typing ----------
@@ -648,7 +855,10 @@ nextBtn.addEventListener("click", function () { getPokemon(nextBtn.dataset.id); 
 
 // Left / Right arrow keys also go previous / next
 document.addEventListener("keydown", function (event) {
-  if (card.hidden || event.target.closest(".search-wrap")) return;
+  if (card.hidden) return;
+  if (!(event.target instanceof Element)) return;
+  // ←/→ belong to text fields and to the artwork select, not to us
+  if (event.target.closest("input, select, textarea, [contenteditable]")) return;
   if (event.key === "ArrowLeft") prevBtn.click();
   if (event.key === "ArrowRight") nextBtn.click();
 });
@@ -660,29 +870,9 @@ shinyBtn.addEventListener("click", function () {
   updateArt(true);
 });
 
-// ---------- 12. Fun effects ----------
-
-// Shiny light that follows the mouse on every glass panel
-document.addEventListener("pointermove", function (event) {
-  const panel = event.target.closest(".glass");
-  if (!panel) return;
-  const box = panel.getBoundingClientRect();
-  panel.style.setProperty("--mx", event.clientX - box.left + "px");
-  panel.style.setProperty("--my", event.clientY - box.top + "px");
-});
-
-// The picture tilts a little toward the mouse
-artBox.addEventListener("pointermove", function (event) {
-  if (reduceMotion) return;
-  const box = artBox.getBoundingClientRect();
-  const x = (event.clientX - box.left) / box.width - 0.5;
-  const y = (event.clientY - box.top) / box.height - 0.5;
-  imgEl.style.transform = "perspective(600px) rotateY(" + x * 16 + "deg) rotateX(" + -y * 16 + "deg)";
-});
-artBox.addEventListener("pointerleave", function () { imgEl.style.transform = ""; });
-
-// ---------- 13. Start ----------
+// ---------- 12. Start ----------
 showRecent();
+buildTypeChips();
 getPokemon("pikachu", true);
 loadNames().then(function () {
   updateNeighbours(); // now we know the neighbours' names

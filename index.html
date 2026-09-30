@@ -4,47 +4,53 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Pokédex | Pokémon Search</title>
+  <meta name="description" content="Search the Pokédex by name or number: types, stats, abilities, evolution line and artwork.">
+  <meta name="theme-color" content="#e9f1f9">
   <!-- Tab icon (a Poké Ball) -->
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@500;700;800&family=Noto+Sans+JP:wght@700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&family=Nunito:wght@400;600;700&family=Noto+Sans+JP:wght@500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body class="t-default">
 
   <!-- ===== TOP BAR ===== -->
   <header class="topbar glass">
-    <a class="brand" href="./" aria-label="Pokémon Pokédex, home">
+    <a class="brand" href="./" aria-label="Pokédex, home">
       <img class="brand-icon" src="favicon.svg" alt="">
-      <span class="logo">Pokémon</span>
-      <span class="brand-sub">Pokédex</span>
+      <span class="logo">Pokédex</span>
     </a>
 
     <!-- Search form + suggestion list -->
     <form id="search-form" autocomplete="off">
       <div class="search-wrap">
         <label for="search-input" class="visually-hidden">Pokémon name</label>
-        <input id="search-input" type="text" placeholder="Search a name, e.g. aipom" required>
-        <ul id="suggestions" class="suggestions glass" hidden></ul>
+        <input id="search-input" type="text" placeholder="Search a name, e.g. aipom" required
+               role="combobox" aria-expanded="false" aria-controls="suggestions" aria-autocomplete="list">
+        <ul id="suggestions" class="suggestions" role="listbox" aria-label="Suggestions" hidden></ul>
       </div>
       <button type="submit" id="search-button">Search</button>
     </form>
 
-    <div class="quick" aria-label="Quick search">
-      <button type="button" class="quick-btn" data-name="pikachu">Pikachu</button>
-      <button type="button" class="quick-btn" data-name="charizard">Charizard</button>
-      <button type="button" class="quick-btn" data-name="bulbasaur">Bulbasaur</button>
-      <button type="button" class="quick-btn" data-name="rillaboom">Rillaboom</button>
-      <button type="button" class="quick-btn" id="random-btn">Random</button>
-    </div>
+    <div class="quickbar">
+      <!-- Quick picks, filled in the markup -->
+      <div class="quick-group" role="group" aria-label="Quick search">
+        <span class="group-label" aria-hidden="true">Quick</span>
+        <button type="button" class="quick-btn" data-name="pikachu">Pikachu</button>
+        <button type="button" class="quick-btn" data-name="charizard">Charizard</button>
+        <button type="button" class="quick-btn" data-name="bulbasaur">Bulbasaur</button>
+        <button type="button" class="quick-btn" data-name="rillaboom">Rillaboom</button>
+        <button type="button" class="quick-btn" id="random-btn">Random</button>
+      </div>
 
-    <!-- Recent searches (filled by script.js) -->
-    <div id="recent" class="quick recent" aria-label="Recent searches" hidden></div>
+      <!-- Recent searches (filled by script.js) -->
+      <div id="recent" class="quick-group" role="group" aria-label="Recent searches" hidden></div>
+    </div>
   </header>
 
   <main>
-    <p id="status" class="status glass" role="status" aria-live="polite"></p>
+    <p id="status" class="status" role="status" aria-live="polite"></p>
 
     <!-- ===== POKÉMON DETAILS CARD ===== -->
     <article id="card" hidden>
@@ -53,16 +59,17 @@
 
         <!-- LEFT: stats -->
         <section class="info glass">
-          <svg id="radar" viewBox="0 0 240 220" role="img" aria-label="Stat chart">
-            <polygon points="120,35 184.95,72.5 184.95,147.5 120,185 55.05,147.5 55.05,72.5" class="grid"/>
-            <polygon points="120,72.5 152.48,91.25 152.48,128.75 120,147.5 87.52,128.75 87.52,91.25" class="grid"/>
+          <svg id="radar" viewBox="0 0 300 220" aria-hidden="true" focusable="false">
+            <polygon points="214.9,72.5 214.9,147.5 150,185 85.1,147.5 85.1,72.5 150,35" class="ring"/>
+            <polygon points="198.7,81.9 198.7,138.1 150,166.3 101.3,138.1 101.3,81.9 150,53.8" class="ring"/>
+            <polygon points="182.5,91.3 182.5,128.8 150,147.5 117.5,128.8 117.5,91.3 150,72.5" class="ring"/>
             <polygon id="radar-shape" points="" class="shape"/>
-            <text x="120" y="22" text-anchor="middle">HP</text>
-            <text x="196" y="68" text-anchor="start">Atk</text>
-            <text x="196" y="158" text-anchor="start">Def</text>
-            <text x="120" y="207" text-anchor="middle">Spe</text>
-            <text x="44" y="158" text-anchor="end">SpD</text>
-            <text x="44" y="68" text-anchor="end">SpA</text>
+            <text x="150" y="24" text-anchor="middle">HP</text>
+            <text x="232" y="70" text-anchor="start">Attack</text>
+            <text x="232" y="156" text-anchor="start">Defense</text>
+            <text x="150" y="208" text-anchor="middle">Speed</text>
+            <text x="68" y="156" text-anchor="end">Sp. Def</text>
+            <text x="68" y="70" text-anchor="end">Sp. Atk</text>
           </svg>
 
           <ul id="stats" class="stats"></ul>
@@ -70,7 +77,7 @@
           <div class="row">
             <div><span class="label">Height</span><strong id="poke-height">-</strong></div>
             <div><span class="label">Weight</span><strong id="poke-weight">-</strong></div>
-            <div><span class="label">Total power</span><strong id="poke-total">-</strong></div>
+            <div><span class="label">Total</span><strong id="poke-total">-</strong></div>
           </div>
           <div>
             <span class="label">Types</span>
@@ -82,35 +89,37 @@
           </div>
         </section>
 
-        <!-- RIGHT: the picture card (name, number, art, sound, next) -->
+        <!-- RIGHT: the picture panel (name, number, art, sound, next) -->
         <section class="art glass">
+          <!-- The Pokémon's own artwork, ghosted behind the name. A div
+               with a background image, so a failed load shows nothing. -->
+          <div class="watermark" id="poke-watermark" aria-hidden="true"></div>
+
           <div class="art-head">
-            <span class="logo small" aria-hidden="true">Pokémon</span>
             <h2 id="poke-name">Name</h2>
             <p id="poke-jp" lang="ja">日本語</p>
             <p class="badges">
-              <span class="badge" id="poke-id">National № 000</span>
+              <span class="badge" id="poke-id">№ 000</span>
               <span class="badge" id="poke-gen">Gen I</span>
             </p>
             <p class="genus" id="poke-genus"></p>
           </div>
 
-          <!-- .float makes the Pokémon hover up and down -->
-          <div class="float"><img id="poke-img" src="" alt=""></div>
+          <div class="float"><img id="poke-img" alt=""></div>
 
           <div class="controls">
             <label for="art-select" class="visually-hidden">Artwork style</label>
             <select id="art-select"></select>
-            <button type="button" id="shiny-btn" class="glass-btn" aria-pressed="false">Shiny version</button>
+            <button type="button" id="shiny-btn" class="glass-btn" aria-pressed="false">Shiny</button>
             <button type="button" id="cry-btn" class="glass-btn">Play sound</button>
           </div>
 
           <div class="nav-row">
             <button type="button" id="prev-btn" class="glass-btn nav-btn" aria-label="Previous Pokémon">
-              <span aria-hidden="true">‹</span><span id="prev-name" class="nav-name">Previous</span>
+              <span aria-hidden="true">‹</span><span id="prev-name">Previous</span>
             </button>
             <button type="button" id="next-btn" class="glass-btn nav-btn" aria-label="Next Pokémon">
-              <span id="next-name" class="nav-name">Next</span><span aria-hidden="true">›</span>
+              <span id="next-name">Next</span><span aria-hidden="true">›</span>
             </button>
           </div>
         </section>
@@ -119,7 +128,7 @@
         <section class="extra glass">
           <p id="poke-desc" class="desc"></p>
           <span class="label">Evolution</span>
-          <ul id="evolution" class="evo-list"></ul>
+          <ol id="evolution" class="evo"></ol>
         </section>
 
       </div>
@@ -131,8 +140,17 @@
         <h2>Wild Pokémon Encounters</h2>
         <button type="button" id="shuffle-btn" class="glass-btn">New encounters</button>
       </div>
+
+      <!-- Type filter, built by script.js so the order is always the same -->
+      <div class="typebar" id="typebar" role="group" aria-label="Filter encounters by type"></div>
+
+      <p class="filter-note" id="filter-note" aria-live="polite"></p>
+
       <div id="grid" class="grid"></div>
-      <p id="sentinel" class="sentinel">Loading more...</p>
+
+      <!-- stays below the grid: the observer watches this line coming
+           into view, so it only loads more when the user scrolls -->
+      <p id="sentinel" class="sentinel" aria-live="polite">Loading more…</p>
     </section>
   </main>
 
