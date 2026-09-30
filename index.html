@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pokédex | Pokémon Search</title>
+  <!-- Tab icon (a Poké Ball) -->
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@500;700;800&family=Noto+Sans+JP:wght@700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="t-default">
+
+  <!-- ===== TOP BAR ===== -->
+  <header class="topbar glass">
+    <a class="brand" href="./" aria-label="Pokémon Pokédex, home">
+      <img class="brand-icon" src="favicon.svg" alt="">
+      <span class="logo">Pokémon</span>
+      <span class="brand-sub">Pokédex</span>
+    </a>
+
+    <!-- Search form + suggestion list -->
+    <form id="search-form" autocomplete="off">
+      <div class="search-wrap">
+        <label for="search-input" class="visually-hidden">Pokémon name</label>
+        <input id="search-input" type="text" placeholder="Search a name, e.g. aipom" required>
+        <ul id="suggestions" class="suggestions glass" hidden></ul>
+      </div>
+      <button type="submit" id="search-button">Search</button>
+    </form>
+
+    <div class="quick" aria-label="Quick search">
+      <button type="button" class="quick-btn" data-name="pikachu">Pikachu</button>
+      <button type="button" class="quick-btn" data-name="charizard">Charizard</button>
+      <button type="button" class="quick-btn" data-name="bulbasaur">Bulbasaur</button>
+      <button type="button" class="quick-btn" data-name="rillaboom">Rillaboom</button>
+      <button type="button" class="quick-btn" id="random-btn">Random</button>
+    </div>
+
+    <!-- Recent searches (filled by script.js) -->
+    <div id="recent" class="quick recent" aria-label="Recent searches" hidden></div>
+  </header>
+
+  <main>
+    <p id="status" class="status glass" role="status" aria-live="polite"></p>
+
+    <!-- ===== POKÉMON DETAILS CARD ===== -->
+    <article id="card" hidden>
+
+      <div class="card-body">
+
+        <!-- LEFT: stats -->
+        <section class="info glass">
+          <svg id="radar" viewBox="0 0 240 220" role="img" aria-label="Stat chart">
+            <polygon points="120,35 184.95,72.5 184.95,147.5 120,185 55.05,147.5 55.05,72.5" class="grid"/>
+            <polygon points="120,72.5 152.48,91.25 152.48,128.75 120,147.5 87.52,128.75 87.52,91.25" class="grid"/>
+            <polygon id="radar-shape" points="" class="shape"/>
+            <text x="120" y="22" text-anchor="middle">HP</text>
+            <text x="196" y="68" text-anchor="start">Atk</text>
+            <text x="196" y="158" text-anchor="start">Def</text>
+            <text x="120" y="207" text-anchor="middle">Spe</text>
+            <text x="44" y="158" text-anchor="end">SpD</text>
+            <text x="44" y="68" text-anchor="end">SpA</text>
+          </svg>
+
+          <ul id="stats" class="stats"></ul>
+
+          <div class="row">
+            <div><span class="label">Height</span><strong id="poke-height">-</strong></div>
+            <div><span class="label">Weight</span><strong id="poke-weight">-</strong></div>
+            <div><span class="label">Total power</span><strong id="poke-total">-</strong></div>
+          </div>
+          <div>
+            <span class="label">Types</span>
+            <ul id="types" class="pills"></ul>
+          </div>
+          <div>
+            <span class="label">Abilities</span>
+            <ul id="abilities" class="pills"></ul>
+          </div>
+        </section>
+
+        <!-- RIGHT: the picture card (name, number, art, sound, next) -->
+        <section class="art glass">
+          <div class="art-head">
+            <span class="logo small" aria-hidden="true">Pokémon</span>
+            <h2 id="poke-name">Name</h2>
+            <p id="poke-jp" lang="ja">日本語</p>
+            <p class="badges">
+              <span class="badge" id="poke-id">National № 000</span>
+              <span class="badge" id="poke-gen">Gen I</span>
+            </p>
+            <p class="genus" id="poke-genus"></p>
+          </div>
+
+          <!-- .float makes the Pokémon hover up and down -->
+          <div class="float"><img id="poke-img" src="" alt=""></div>
+
+          <div class="controls">
+            <label for="art-select" class="visually-hidden">Artwork style</label>
+            <select id="art-select"></select>
+            <button type="button" id="shiny-btn" class="glass-btn" aria-pressed="false">Shiny version</button>
+            <button type="button" id="cry-btn" class="glass-btn">Play sound</button>
+          </div>
+
+          <div class="nav-row">
+            <button type="button" id="prev-btn" class="glass-btn nav-btn" aria-label="Previous Pokémon">
+              <span aria-hidden="true">‹</span><span id="prev-name" class="nav-name">Previous</span>
+            </button>
+            <button type="button" id="next-btn" class="glass-btn nav-btn" aria-label="Next Pokémon">
+              <span id="next-name" class="nav-name">Next</span><span aria-hidden="true">›</span>
+            </button>
+          </div>
+        </section>
+
+        <!-- BOTTOM: description + evolution -->
+        <section class="extra glass">
+          <p id="poke-desc" class="desc"></p>
+          <span class="label">Evolution</span>
+          <ul id="evolution" class="evo-list"></ul>
+        </section>
+
+      </div>
+    </article>
+
+    <!-- ===== ENDLESS GRID OF RANDOM POKÉMON ===== -->
+    <section class="explore">
+      <div class="explore-head">
+        <h2>Wild Pokémon Encounters</h2>
+        <button type="button" id="shuffle-btn" class="glass-btn">New encounters</button>
+      </div>
+      <div id="grid" class="grid"></div>
+      <p id="sentinel" class="sentinel">Loading more...</p>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>

@@ -1,0 +1,335 @@
+/* =========================================================
+   GLASS POKÉDEX - style.css
+   Colourful blurred background + see-through glass panels.
+   Colours change with the Pokémon's type.
+   ========================================================= */
+
+/* ---------- 1. Colours ---------- */
+:root {
+  --ink: #1b1b2f;
+  --c1: #e8363d;   /* type colour 1 (changes per Pokémon) */
+  --c2: #ff9aa0;   /* type colour 2 (changes per Pokémon) */
+}
+
+/* script.js puts a class like "t-fire" on <body> and on type pills */
+.t-default  { --c1: #e8363d; --c2: #ff9aa0; }
+.t-normal   { --c1: #a8a77a; --c2: #d6d5b0; }
+.t-fire     { --c1: #ee6b1f; --c2: #ffb36b; }
+.t-water    { --c1: #3f78f0; --c2: #9dc1ff; }
+.t-electric { --c1: #f2c500; --c2: #fff08a; }
+.t-grass    { --c1: #4caf3c; --c2: #b6e88f; }
+.t-ice      { --c1: #4fc3c0; --c2: #d5f5f3; }
+.t-fighting { --c1: #c22e28; --c2: #ef6b65; }
+.t-poison   { --c1: #a33ea1; --c2: #d68ad4; }
+.t-ground   { --c1: #d4a63a; --c2: #f3dc9c; }
+.t-flying   { --c1: #8a6ff0; --c2: #d3c6ff; }
+.t-psychic  { --c1: #f95587; --c2: #ffa3c0; }
+.t-bug      { --c1: #92a80f; --c2: #d5e560; }
+.t-rock     { --c1: #b6a136; --c2: #dccf78; }
+.t-ghost    { --c1: #5f4a8a; --c2: #a78fce; }
+.t-dragon   { --c1: #5a2ff0; --c2: #a98cff; }
+.t-dark     { --c1: #5b4536; --c2: #a08069; }
+.t-steel    { --c1: #8f8fb0; --c2: #e0e0ee; }
+.t-fairy    { --c1: #e07aae; --c2: #f6b9d8; }
+
+/* ---------- 2. Page basics ---------- */
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }   /* makes the hidden attribute always work */
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Nunito", system-ui, sans-serif;
+  color: var(--ink);
+  background: #eaf3fb;
+}
+
+/* Colour blobs live on a fixed layer behind everything (works on phones too) */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(circle at 10% 12%, var(--c1) 0, transparent 38%),
+    radial-gradient(circle at 90% 30%, var(--c2) 0, transparent 50%),
+    radial-gradient(circle at 55% 95%, var(--c2) 0, transparent 55%);
+}
+
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+}
+
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid #fff; outline-offset: 2px; box-shadow: 0 0 0 5px var(--ink); }
+
+/* ---------- 3. Glass (used on every panel) ----------
+   Two backgrounds: a shiny spot that follows the mouse (--mx, --my)
+   and a see-through white layer. */
+.glass {
+  background:
+    radial-gradient(circle at var(--mx, 30%) var(--my, 0%), rgba(255,255,255,0.5), transparent 45%),
+    rgba(255, 255, 255, 0.28);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  border-radius: 26px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 -10px 24px rgba(255, 255, 255, 0.12),
+    0 14px 34px rgba(20, 20, 60, 0.16);
+}
+
+/* ---------- 4. Logo (yellow text with blue outline) ---------- */
+.logo {
+  font-family: "Fredoka", sans-serif;
+  font-weight: 700;
+  font-size: 2rem;
+  line-height: 1;
+  text-decoration: none;
+  color: #ffcb05;
+  -webkit-text-stroke: 7px #2a3f9d;
+  paint-order: stroke fill;
+  text-shadow: 0 3px 0 #2a3f9d, 0 6px 10px rgba(0, 0, 0, 0.25);
+}
+.logo.small { font-size: 1.2rem; -webkit-text-stroke: 5px #2a3f9d; }
+
+/* ---------- 5. Top bar ---------- */
+.topbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 18px;
+  max-width: 1000px;
+  margin: 16px auto 0;
+  padding: 14px 24px;
+  border-radius: 34px;
+  color: var(--ink);
+  /* clear glass with a light red tint */
+  background: linear-gradient(135deg, rgba(232, 54, 61, 0.22), rgba(255, 255, 255, 0.16));
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), inset 0 0 0 1px rgba(232, 54, 61, 0.18), 0 14px 34px rgba(120, 10, 30, 0.14);
+  position: relative;
+  z-index: 5;   /* keeps the suggestion list above the cards */
+}
+
+#search-form { display: flex; gap: 8px; flex: 1 1 280px; }
+.search-wrap { position: relative; flex: 1; min-width: 0; }
+
+#search-input {
+  width: 100%;
+  padding: 10px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.85);
+  color: var(--ink);
+}
+
+#search-button, .quick-btn, .glass-btn, .nav-btn, #art-select {
+  padding: 9px 18px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  background: rgba(255, 255, 255, 0.25);
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  transition: background 0.2s, transform 0.1s;
+}
+#search-button { background: var(--ink); border-color: var(--ink); color: #fff; }
+#search-button:hover { background: #33335a; }
+.quick-btn { color: var(--ink); padding: 6px 14px; font-size: 0.9rem; }
+.quick-btn:hover, .glass-btn:hover, .nav-btn:hover { background: rgba(255, 255, 255, 0.5); }
+#search-button:active, .quick-btn:active, .glass-btn:active, .nav-btn:active { transform: scale(0.95); }
+#search-button:disabled, .glass-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.glass-btn.playing { background: var(--c1); color: #fff; }
+
+.quick { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; }
+
+/* Suggestion dropdown */
+.suggestions {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0; right: 0;
+  margin: 0; padding: 8px;
+  list-style: none;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.72);
+  border-radius: 22px;
+}
+.sug-title { padding: 4px 10px; font-size: 0.8rem; font-weight: 800; opacity: 0.65; }
+.suggestion {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; padding: 4px 10px;
+  border: 0; border-radius: 14px;
+  background: transparent; cursor: pointer; text-align: left;
+  font-weight: 700; text-transform: capitalize;
+}
+.suggestion img { width: 36px; height: 36px; image-rendering: pixelated; }
+.suggestion .sug-id { margin-left: auto; opacity: 0.6; font-size: 0.85rem; }
+.suggestion:hover, .suggestion:focus-visible { background: rgba(255, 255, 255, 0.85); }
+
+/* ---------- 6. Status message ---------- */
+main { max-width: 1000px; margin: 24px auto 60px; padding: 0 16px; }
+
+.status { margin: 0 auto 20px; max-width: 520px; padding: 16px 20px; text-align: center; font-weight: 800; }
+.status:empty { display: none; }
+.status.error { background: rgba(255, 215, 215, 0.75); border-color: #e8363d; color: #8c1018; }
+.status.loading::before {
+  content: "";
+  display: inline-block;
+  width: 22px; height: 22px; margin-right: 10px;
+  vertical-align: middle;
+  border-radius: 50%;
+  border: 3px solid var(--ink);
+  background: linear-gradient(#e8363d 45%, var(--ink) 45% 55%, #fff 55%);
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---------- 7. Brand + name inside the picture card ---------- */
+.brand { display: flex; align-items: center; gap: 8px; text-decoration: none; color: var(--ink); }
+.brand-icon { width: 34px; height: 34px; }
+.brand-sub { font-family: "Fredoka", sans-serif; font-weight: 700; font-size: 1.3rem; }
+
+.art-head { position: relative; text-align: center; }
+.art-head p { margin: 0; }
+.art-head h2 { margin: 6px 0 0; font-family: "Fredoka", sans-serif; font-size: 2rem; text-transform: capitalize; }
+#poke-jp { font-family: "Noto Sans JP", sans-serif; font-size: 1.1rem; }
+.badges { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 8px; margin-top: 8px !important; }
+.badge { padding: 3px 12px; border-radius: 999px; font-weight: 800; font-size: 0.85rem; background: rgba(255, 255, 255, 0.5); border: 1px solid rgba(255, 255, 255, 0.9); }
+.genus { margin-top: 6px !important; font-size: 0.9rem; opacity: 0.8; }
+
+.nav-row { position: relative; display: flex; justify-content: space-between; gap: 8px; width: 100%; }
+.nav-btn { display: flex; align-items: center; gap: 8px; text-transform: capitalize; }
+.nav-btn > span[aria-hidden] { font-size: 1.4rem; line-height: 1; }
+
+/* ---------- 8. Card body ---------- */
+.card-body { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.info { padding: 22px; display: grid; gap: 16px; align-content: start; }
+.extra { grid-column: 1 / -1; padding: 22px; }
+
+#radar { width: 100%; max-width: 280px; margin: 0 auto; display: block; }
+#radar .grid  { fill: rgba(255, 255, 255, 0.3); stroke: rgba(27, 27, 47, 0.25); }
+#radar .shape { fill: rgba(80, 90, 255, 0.5); stroke: #3b44e0; stroke-width: 2; }
+#radar text   { font-size: 12px; font-weight: 800; fill: var(--ink); }
+
+.stats { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.stats li { display: grid; grid-template-columns: 70px 36px 1fr; align-items: center; gap: 8px; font-weight: 700; }
+.bar { height: 8px; border-radius: 99px; background: rgba(27, 27, 47, 0.12); overflow: hidden; }
+.bar span { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--c2), var(--c1)); transition: width 0.7s ease-out; }
+
+.row { display: flex; gap: 32px; }
+.row strong { font-size: 1.15rem; }
+.label { display: block; font-size: 0.85rem; font-weight: 800; opacity: 0.7; margin-bottom: 6px; }
+
+.pills { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.pills li {
+  padding: 5px 14px; border-radius: 999px;
+  font-weight: 800; text-transform: capitalize;
+  background: rgba(255, 255, 255, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+}
+.pills li[class^="t-"]::before {
+  content: ""; display: inline-block;
+  width: 10px; height: 10px; margin-right: 8px;
+  border-radius: 50%; background: var(--c1);
+}
+
+/* Artwork panel */
+.art {
+  position: relative;
+  overflow: hidden;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: space-between;
+  gap: 16px; padding: 20px;
+  min-height: 520px;
+}
+.art::before {   /* Poké Ball watermark */
+  content: "";
+  position: absolute;
+  width: 420px; height: 420px;
+  right: -120px; top: -60px;
+  border-radius: 50%;
+  border: 18px solid rgba(255, 255, 255, 0.4);
+  background: linear-gradient(transparent 44%, rgba(255, 255, 255, 0.4) 44% 56%, transparent 56%);
+  pointer-events: none;
+}
+/* The floating effect: the picture moves up and down, and its shadow shrinks */
+.float { position: relative; width: min(78%, 320px); margin: auto; animation: float 4s ease-in-out infinite; }
+.float::after {
+  content: "";
+  position: absolute;
+  left: 18%; right: 18%; bottom: -22px; height: 16px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.28);
+  filter: blur(8px);
+  animation: shadow 4s ease-in-out infinite;
+}
+@keyframes float  { 50% { transform: translateY(-16px); } }
+@keyframes shadow { 50% { transform: scale(0.7); opacity: 0.5; } }
+
+.art img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: contain;
+  filter: drop-shadow(0 16px 14px rgba(0, 0, 0, 0.22));
+  transition: transform 0.15s ease-out;   /* smooth mouse tilt */
+}
+.art img.pixel { image-rendering: pixelated; }
+
+.controls { position: relative; display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+.glass-btn, #art-select { color: var(--ink); background: rgba(255, 255, 255, 0.45); }
+
+/* Description + evolution */
+.desc { margin: 0 0 16px; max-width: 70ch; line-height: 1.5; font-weight: 700; }
+.evo-list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.evo-list li + li::before { content: "›"; margin-right: 8px; font-size: 1.6rem; opacity: 0.5; }
+.evo-list li { display: flex; align-items: center; }
+.evo { display: grid; justify-items: center; padding: 6px 12px; border-radius: 20px; cursor: pointer; text-transform: capitalize; font-weight: 800; background: rgba(255,255,255,0.35); border: 1px solid rgba(255,255,255,0.8); transition: transform 0.15s, background 0.2s; }
+.evo img { width: 72px; height: 72px; image-rendering: pixelated; }
+.evo:hover { transform: translateY(-3px); background: rgba(255,255,255,0.6); }
+.evo.current { background: rgba(255,255,255,0.75); box-shadow: 0 0 0 2px var(--c1); }
+.evo-note { font-weight: 700; }
+
+/* Recent searches */
+.recent { align-items: center; font-size: 0.85rem; font-weight: 800; }
+.recent .quick-btn { text-transform: capitalize; padding: 4px 12px; }
+
+/* ---------- 9. Endless grid ---------- */
+.explore-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin: 48px 0 16px; }
+.explore-head h2 { margin: 0; }
+.explore h2 { font-family: "Fredoka", sans-serif; font-size: 1.6rem; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; }
+.mini {
+  display: grid; justify-items: center; gap: 2px;
+  padding: 12px 8px; cursor: pointer;
+  border-radius: 22px;
+  text-transform: capitalize; font-weight: 800;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+.mini img { width: 110px; height: 110px; object-fit: contain; filter: drop-shadow(0 8px 8px rgba(0,0,0,0.2)); transition: transform 0.2s; }
+.mini:hover { transform: translateY(-5px); }
+.mini:hover img { transform: scale(1.08); }
+.mini:active { transform: scale(0.97); }
+.mini .mini-id { font-size: 0.8rem; opacity: 0.65; }
+.sentinel { text-align: center; font-weight: 800; padding: 24px 0; opacity: 0.7; }
+
+/* ---------- 10. Phones and tablets ---------- */
+@media (max-width: 720px) {
+  .topbar { border-radius: 28px; padding: 14px 16px; }
+  .quick { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 4px; }   /* swipe sideways */
+  .quick-btn { flex: none; }
+  .art-head h2 { font-size: 1.7rem; }
+  .row { flex-wrap: wrap; gap: 16px 28px; }
+  .brand-sub { font-size: 1.1rem; }
+  .card-body { grid-template-columns: 1fr; }
+  .art { order: -1; min-height: 480px; }  /* picture first */
+  .grid { grid-template-columns: repeat(2, 1fr); }
+  .mini img { width: 96px; height: 96px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
